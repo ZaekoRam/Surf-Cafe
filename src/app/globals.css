@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   SURF CAFE PC STORE — Tokens base
+   Solo tema oscuro: la marca vive en negro con neon verde/amarillo.
+   ===================================================================== */
+@layer base {
+  :root {
+    --background: 218 29% 5%; /* #0A0D12 */
+    --foreground: 210 20% 96%;
+
+    --card: 220 22% 13%; /* #1A1F29 */
+    --card-foreground: 210 20% 96%;
+
+    --popover: 218 29% 7%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 133 76% 51%; /* #21E14B verde neon */
+    --primary-foreground: 240 12% 3%;
+
+    --secondary: 220 22% 13%;
+    --secondary-foreground: 210 20% 96%;
+
+    --muted: 218 12% 19%; /* #2A2E35 */
+    --muted-foreground: 215 12% 65%;
+
+    --accent: 218 12% 19%;
+    --accent-foreground: 133 76% 51%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 218 12% 19%;
+    --input: 218 12% 19%;
+    --ring: 133 76% 51%;
+
+    --radius: 0.25rem; /* esquinas duras: la marca es angular */
+
+    /* Alturas de layout usadas por HUD y secciones sticky */
+    --nav-h: 4.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* GSAP ScrollTrigger + smooth nativo pelean: se desactiva desde JS
+       cuando se monta un smooth-scroller. */
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    background-image:
+      radial-gradient(70% 45% at 50% -10%, rgba(33, 225, 75, 0.1) 0%, transparent 70%),
+      radial-gradient(40% 30% at 100% 100%, rgba(0, 240, 255, 0.06) 0%, transparent 70%);
+    background-attachment: fixed;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-bold uppercase tracking-wider;
+  }
+
+  ::selection {
+    background: rgba(33, 225, 75, 0.28);
+    color: #eaffef;
+  }
+
+  /* Focus visible con anillo neon en todo el sitio */
+  :focus-visible {
+    @apply outline-none ring-2 ring-surf-green/70 ring-offset-2 ring-offset-background;
+  }
+}
+
+/* =====================================================================
+   Scrollbar cyberpunk
+   ===================================================================== */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #21e14b #0a0d12;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0d12;
+    border-left: 1px solid rgba(33, 225, 75, 0.12);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #21e14b 0%, #0f7a2a 100%);
+    border: 2px solid #0a0d12;
+    box-shadow: 0 0 8px rgba(33, 225, 75, 0.55);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #39ff14 0%, #21e14b 100%);
+    box-shadow: 0 0 14px rgba(57, 255, 20, 0.75);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: #0a0d12;
+  }
+}
+
+/* =====================================================================
+   Componentes de marca reutilizables
+   ===================================================================== */
+@layer components {
+  /* Panel HUD: cristal + borde neon + esquina recortada */
+  .hud-panel {
+    @apply glass clip-hud relative shadow-hud;
+  }
+
+  /* Linea divisoria con degradado neon */
+  .hud-rule {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-surf-green/60 to-transparent;
+  }
+
+  /* Etiqueta de seccion: "// 01 — DIAGNOSTICO" */
+  .hud-label {
+    @apply font-mono text-xs uppercase tracking-[0.35em] text-surf-green/80;
+  }
+  /* El "//" es decoracion: en el JSX iria como texto y ESLint lo lee como
+     comentario suelto (react/jsx-no-comment-textnodes). */
+  .hud-label::before {
+    content: '// ';
+    @apply text-surf-green/45;
+  }
+
+  /* Boton primario neon */
+  .btn-neon {
+    @apply clip-hud-sm relative inline-flex items-center justify-center gap-2 border border-surf-green/60
+           bg-surf-green/10 px-6 py-3 font-display text-sm font-bold uppercase tracking-widest
+           text-surf-green transition-all duration-300;
+  }
+  .btn-neon:hover {
+    @apply bg-surf-green text-surface-deep shadow-neon-lg;
+  }
+
+  /* Boton secundario amarillo */
+  .btn-neon-yellow {
+    @apply clip-hud-sm inline-flex items-center justify-center gap-2 border border-surf-yellow/60
+           bg-surf-yellow/10 px-6 py-3 font-display text-sm font-bold uppercase tracking-widest
+           text-surf-yellow transition-all duration-300 hover:bg-surf-yellow hover:text-surface-deep
+           hover:shadow-neon-yellow;
+  }
+
+  /* Rejilla HUD de fondo para secciones */
+  .bg-hud {
+    @apply bg-grid-hud bg-grid-hud;
+  }
+
+  /* Overlay de scanlines (usar en un ::after o div absoluto) */
+  .scanlines::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 bg-scanline opacity-40 mix-blend-overlay;
+  }
+
+  /* Codigo de rastreo / SKU */
+  .code-chip {
+    @apply clip-tag inline-flex items-center gap-2 border border-surf-cyan/40 bg-surf-cyan/10 px-3 py-1
+           font-mono text-xs uppercase tracking-[0.2em] text-surf-cyan;
+  }
+
+  /* Input estandar de formularios del admin (product-form-dialog, etc.) */
+  .admin-input {
+    @apply clip-hud-sm w-full border border-surface-grey bg-surface-metal/70 px-3 py-2.5 text-sm
+           text-foreground placeholder:text-muted-foreground/40 focus:border-surf-green;
+  }
+}
+
+/* =====================================================================
+   Utilidades de scrollytelling (GSAP)
+   ===================================================================== */
+@layer utilities {
+  /* Contenedor que fija su hijo mientras dura el pin de ScrollTrigger */
+  .pin-stage {
+    height: 100vh;
+    height: 100svh;
+  }
+
+  /* Estado inicial de elementos animados: evita el flash antes de que GSAP
+     tome control (se limpia con gsap.set en el efecto). */
+  .anim-init {
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* =====================================================================
+   Accesibilidad: respetar prefers-reduced-motion
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .anim-init {
+    opacity: 1 !important;
+  }
+}
