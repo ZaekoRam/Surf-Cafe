@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Cpu, Home, Radar, Wrench } from 'lucide-react';
+import { CalendarDays, Cpu, Home, Radar, Wrench } from 'lucide-react';
 
 export type NavItem = {
   href: string;
@@ -39,6 +39,13 @@ export const mainNav: NavItem[] = [
     code: '03',
     description: 'Sigue tu equipo en tiempo real',
     icon: Radar,
+  },
+  {
+    href: '/citas',
+    label: 'Citas',
+    code: '04',
+    description: 'Agenda tu diagnóstico o mantenimiento',
+    icon: CalendarDays,
   },
 ];
 

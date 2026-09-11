@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { todayISO } from '@/lib/utils';
 import type {
   Appointment,
   Product,
@@ -8,6 +9,11 @@ import type {
   Repair,
   RepairEvent,
   RepairStatus,
+  ServiceConfig,
+  ServiceDevice,
+  ServiceIssue,
+  ServicePackage,
+  ServiceSettings,
   WorkshopVideoRow,
   WorkshopVideoSource,
 } from '@/types/database';
@@ -204,6 +210,14 @@ export async function updateProductStaff(
   return data as Product;
 }
 
+export async function deleteProductStaff(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) {
+    console.error('deleteProductStaff', error.message);
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Staff — fotos de producto (Supabase Storage)
 // ---------------------------------------------------------------------------
@@ -233,10 +247,12 @@ export async function uploadProductImage(
 // Staff — reparaciones
 // ---------------------------------------------------------------------------
 
+/** Solo las que siguen en el tablero (sin archivar). */
 export async function fetchAllRepairsStaff(supabase: SupabaseClient): Promise<Repair[]> {
   const { data, error } = await supabase
     .from('repairs')
     .select('*')
+    .is('archived_at', null)
     .order('received_at', { ascending: false });
 
   if (error) {
@@ -244,6 +260,46 @@ export async function fetchAllRepairsStaff(supabase: SupabaseClient): Promise<Re
     return [];
   }
   return (data as Repair[]) ?? [];
+}
+
+/** Reparaciones archivadas (entregadas y ya sacadas del tablero) — base del directorio de clientes. */
+export async function fetchArchivedRepairsStaff(supabase: SupabaseClient): Promise<Repair[]> {
+  const { data, error } = await supabase
+    .from('repairs')
+    .select('*')
+    .not('archived_at', 'is', null)
+    .order('archived_at', { ascending: false });
+
+  if (error) {
+    console.error('fetchArchivedRepairsStaff', error.message);
+    return [];
+  }
+  return (data as Repair[]) ?? [];
+}
+
+/** Archiva una orden entregada: sale del Kanban, sigue en "Clientes atendidos". */
+export async function archiveRepairStaff(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase
+    .from('repairs')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) {
+    console.error('archiveRepairStaff', error.message);
+    throw error;
+  }
+}
+
+/** Cada cuántos meses le toca su próximo mantenimiento a este cliente (null = usa el default global). */
+export async function updateRepairRenewalMonthsStaff(
+  supabase: SupabaseClient,
+  id: string,
+  months: number | null
+): Promise<void> {
+  const { error } = await supabase.from('repairs').update({ renewal_months: months }).eq('id', id);
+  if (error) {
+    console.error('updateRepairRenewalMonthsStaff', error.message);
+    throw error;
+  }
 }
 
 /** Cambio rápido de estado (arrastre en el Kanban) — sin nota. */
@@ -304,6 +360,14 @@ export async function insertRepairStaff(
     throw error;
   }
   return data as Repair;
+}
+
+export async function deleteRepairStaff(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from('repairs').delete().eq('id', id);
+  if (error) {
+    console.error('deleteRepairStaff', error.message);
+    throw error;
+  }
 }
 
 export interface RepairUpdateValues {
@@ -367,13 +431,75 @@ export async function updateRepairStaff(
 }
 
 // ---------------------------------------------------------------------------
+// Público — citas
+// ---------------------------------------------------------------------------
+
+/**
+ * Horarios ya ocupados en una fecha, vía la función `security definer`
+ * `get_taken_appointment_slots` (0010) — nunca expone a quién pertenecen,
+ * solo el horario, para que /citas no dé a escoger uno ya tomado.
+ */
+export async function fetchTakenAppointmentSlots(
+  supabase: SupabaseClient,
+  dateISO: string
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_taken_appointment_slots', {
+    p_date: dateISO,
+  });
+
+  if (error) {
+    console.error('fetchTakenAppointmentSlots', error.message);
+    return [];
+  }
+  return (data as string[]) ?? [];
+}
+
+export interface AppointmentIntakeValues {
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string | null;
+  device_type: string;
+  service_type: string;
+  date: string;
+  time_slot: string;
+  home_pickup: boolean;
+  address: string | null;
+  notes: string | null;
+}
+
+/**
+ * Agenda una cita desde /citas, sin sesión — permitido por la policy
+ * "agendar cita" (`for insert with check (true)`, 0001_init.sql). Si el
+ * horario se acaba de ocupar, Postgres rechaza por el
+ * `unique (date, time_slot)` y el error se deja pasar para que la UI lo
+ * traduzca a "elige otro horario".
+ */
+export async function insertAppointmentPublic(
+  supabase: SupabaseClient,
+  values: AppointmentIntakeValues
+): Promise<Appointment> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .insert(values)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('insertAppointmentPublic', error.message);
+    throw error;
+  }
+  return data as Appointment;
+}
+
+// ---------------------------------------------------------------------------
 // Staff — citas
 // ---------------------------------------------------------------------------
 
+/** Solo las citas de hoy — para la métrica del panel principal. */
 export async function fetchTodayAppointmentsStaff(
   supabase: SupabaseClient
 ): Promise<Appointment[]> {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, hora local del navegador
+  const today = todayISO();
   const { data, error } = await supabase
     .from('appointments')
     .select('*')
@@ -387,9 +513,149 @@ export async function fetchTodayAppointmentsStaff(
   return (data as Appointment[]) ?? [];
 }
 
+/** Citas de hoy en adelante, para que el dueño vea quién va a llegar y cuándo (/admin/citas). */
+export async function fetchUpcomingAppointmentsStaff(
+  supabase: SupabaseClient
+): Promise<Appointment[]> {
+  const today = todayISO();
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*')
+    .gte('date', today)
+    .order('date', { ascending: true })
+    .order('time_slot', { ascending: true });
+
+  if (error) {
+    console.error('fetchUpcomingAppointmentsStaff', error.message);
+    return [];
+  }
+  return (data as Appointment[]) ?? [];
+}
+
+/** Cancela/borra una cita — para duplicados, pruebas, o cuando el cliente cancela por WhatsApp. */
+export async function deleteAppointmentStaff(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from('appointments').delete().eq('id', id);
+  if (error) {
+    console.error('deleteAppointmentStaff', error.message);
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Staff — ventas de hoy (pedidos reales, no estimados)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Cotizador de mantenimiento — precios editables
+// ---------------------------------------------------------------------------
+
+/** Config pública (solo filas activas) para el cotizador de /mantenimiento. */
+export async function fetchServiceConfig(
+  supabase: SupabaseClient
+): Promise<ServiceConfig | null> {
+  const [devices, tiers, issues, settings] = await Promise.all([
+    supabase.from('service_devices').select('*').eq('active', true).order('sort_order'),
+    supabase.from('service_tiers').select('*').eq('active', true).order('sort_order'),
+    supabase.from('service_issues').select('*').eq('active', true).order('sort_order'),
+    supabase.from('service_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+
+  if (devices.error || tiers.error || issues.error || settings.error) {
+    console.error(
+      'fetchServiceConfig',
+      devices.error?.message || tiers.error?.message || issues.error?.message || settings.error?.message
+    );
+    return null;
+  }
+  if (!devices.data?.length || !tiers.data?.length || !settings.data) return null;
+
+  return {
+    devices: devices.data as ServiceDevice[],
+    tiers: tiers.data as ServicePackage[],
+    issues: (issues.data as ServiceIssue[]) ?? [],
+    settings: settings.data as ServiceSettings,
+  };
+}
+
+/** Igual pero con TODO (activo e inactivo) — para el panel. */
+export async function fetchServiceConfigStaff(supabase: SupabaseClient): Promise<{
+  devices: ServiceDevice[];
+  tiers: ServicePackage[];
+  issues: ServiceIssue[];
+  settings: ServiceSettings | null;
+}> {
+  const [devices, tiers, issues, settings] = await Promise.all([
+    supabase.from('service_devices').select('*').order('sort_order'),
+    supabase.from('service_tiers').select('*').order('sort_order'),
+    supabase.from('service_issues').select('*').order('sort_order'),
+    supabase.from('service_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+  return {
+    devices: (devices.data as ServiceDevice[]) ?? [],
+    tiers: (tiers.data as ServicePackage[]) ?? [],
+    issues: (issues.data as ServiceIssue[]) ?? [],
+    settings: (settings.data as ServiceSettings) ?? null,
+  };
+}
+
+export async function upsertServiceDeviceStaff(
+  supabase: SupabaseClient,
+  row: ServiceDevice
+): Promise<void> {
+  const { error } = await supabase.from('service_devices').upsert(row);
+  if (error) {
+    console.error('upsertServiceDeviceStaff', error.message);
+    throw error;
+  }
+}
+
+export async function upsertServiceTierStaff(
+  supabase: SupabaseClient,
+  row: ServicePackage
+): Promise<void> {
+  const { error } = await supabase.from('service_tiers').upsert(row);
+  if (error) {
+    console.error('upsertServiceTierStaff', error.message);
+    throw error;
+  }
+}
+
+export async function upsertServiceIssueStaff(
+  supabase: SupabaseClient,
+  row: ServiceIssue
+): Promise<void> {
+  const { error } = await supabase.from('service_issues').upsert(row);
+  if (error) {
+    console.error('upsertServiceIssueStaff', error.message);
+    throw error;
+  }
+}
+
+export async function deleteServiceRowStaff(
+  supabase: SupabaseClient,
+  table: 'service_devices' | 'service_tiers' | 'service_issues',
+  slug: string
+): Promise<void> {
+  const { error } = await supabase.from(table).delete().eq('slug', slug);
+  if (error) {
+    console.error('deleteServiceRowStaff', error.message);
+    throw error;
+  }
+}
+
+export async function updateServiceSettingsStaff(
+  supabase: SupabaseClient,
+  settings: ServiceSettings
+): Promise<void> {
+  const { error } = await supabase
+    .from('service_settings')
+    .update(settings)
+    .eq('id', 1);
+  if (error) {
+    console.error('updateServiceSettingsStaff', error.message);
+    throw error;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // "El Taller" — videos de la galería del inicio

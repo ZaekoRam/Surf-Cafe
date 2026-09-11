@@ -12,6 +12,8 @@
  * puede apuntar a un Reel/TikTok real cambiando `videoUrl` por su URL de
  * embed — el componente lo detecta solo.
  */
+import { siteConfig } from '@/config/site';
+
 export type WorkshopTag = '#Ensambles' | '#Mantenimiento' | '#Storytime' | '#TipsTech';
 
 export interface WorkshopVideo {
@@ -41,7 +43,7 @@ export const workshopVideos: WorkshopVideo[] = [
   {
     id: 'historia-taller',
     title: 'Cómo empezó Surf Cafe',
-    description: '10+ años después, así se ve el taller un martes cualquiera.',
+    description: `${siteConfig.trust.yearsInMarket}+ años después, así se ve el taller un martes cualquiera.`,
     tag: '#Storytime',
     videoUrl: null,
   },

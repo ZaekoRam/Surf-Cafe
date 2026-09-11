@@ -1,25 +1,26 @@
 'use client';
 
 import { create } from 'zustand';
-import type { DeviceType, IssueId, ServiceTier } from '@/config/services';
 
 export type WizardStep = 0 | 1 | 2 | 3 | 4;
 
+// Los slugs de equipo/paquete/falla ahora son dinámicos (vienen de Supabase,
+// editables desde /admin), así que son `string`, no una unión cerrada.
 interface QuoteState {
   step: WizardStep;
-  device: DeviceType | null;
-  issues: IssueId[];
+  device: string | null;
+  issues: string[];
   /** Falla que el cliente escribió a mano ("otro motivo"). */
   otherIssue: string;
-  tier: ServiceTier | null;
+  tier: string | null;
   homePickup: boolean;
   date: string | null;
   timeSlot: string | null;
 
-  setDevice: (device: DeviceType) => void;
-  toggleIssue: (issue: IssueId) => void;
+  setDevice: (device: string) => void;
+  toggleIssue: (issue: string) => void;
   setOtherIssue: (text: string) => void;
-  setTier: (tier: ServiceTier) => void;
+  setTier: (tier: string) => void;
   setHomePickup: (value: boolean) => void;
   setSchedule: (date: string, timeSlot: string) => void;
   next: () => void;
@@ -30,7 +31,7 @@ interface QuoteState {
 const initial = {
   step: 0 as WizardStep,
   device: null,
-  issues: [] as IssueId[],
+  issues: [] as string[],
   otherIssue: '',
   tier: null,
   homePickup: false,

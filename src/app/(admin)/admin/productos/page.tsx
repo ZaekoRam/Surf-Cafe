@@ -1,13 +1,18 @@
 'use client';
 
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { AdminPage } from '@/components/admin/admin-shell';
 import { ProductFormDialog, type ProductFormValues } from '@/components/admin/product-form-dialog';
 import { createClient } from '@/lib/supabase/client';
-import { fetchAllProductsStaff, insertProductStaff, updateProductStaff } from '@/lib/supabase/queries';
+import {
+  deleteProductStaff,
+  fetchAllProductsStaff,
+  insertProductStaff,
+  updateProductStaff,
+} from '@/lib/supabase/queries';
 import { errorText, formatMXN, slugify } from '@/lib/utils';
 import { productCategoryMeta, type Product } from '@/types/database';
 
@@ -44,6 +49,17 @@ export default function ProductosPage() {
       toast.success('Producto actualizado', { description: values.title });
     } catch (e) {
       toast.error('No se pudo guardar el producto', { description: errorText(e) });
+    }
+  }
+
+  async function handleDelete(product: Product) {
+    if (!window.confirm(`¿Eliminar "${product.title}" del catálogo? No se puede deshacer.`)) return;
+    try {
+      await deleteProductStaff(createClient(), product.id);
+      setProducts((prev) => (prev ?? []).filter((p) => p.id !== product.id));
+      toast.success('Producto eliminado');
+    } catch (e) {
+      toast.error('No se pudo eliminar', { description: errorText(e) });
     }
   }
 
@@ -106,19 +122,29 @@ export default function ProductosPage() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    <ProductFormDialog
-                      product={p}
-                      onSubmit={(values) => handleEdit(p.id, values)}
-                      trigger={
-                        <button
-                          type="button"
-                          aria-label={`Editar ${p.title}`}
-                          className="clip-hud-sm border border-surface-grey p-2 text-muted-foreground transition-colors hover:border-surf-green hover:text-surf-green"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      }
-                    />
+                    <div className="flex justify-end gap-2">
+                      <ProductFormDialog
+                        product={p}
+                        onSubmit={(values) => handleEdit(p.id, values)}
+                        trigger={
+                          <button
+                            type="button"
+                            aria-label={`Editar ${p.title}`}
+                            className="clip-hud-sm border border-surface-grey p-2 text-muted-foreground transition-colors hover:border-surf-green hover:text-surf-green"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        }
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Eliminar ${p.title}`}
+                        onClick={() => handleDelete(p)}
+                        className="clip-hud-sm border border-surface-grey p-2 text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

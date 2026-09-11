@@ -1,13 +1,17 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { Film, Plus, Youtube, X } from 'lucide-react';
+import { Film, ImagePlus, Plus, Youtube, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { workshopTagStyles } from '@/config/workshop';
 import { createClient } from '@/lib/supabase/client';
-import { uploadWorkshopVideo, type WorkshopVideoWriteValues } from '@/lib/supabase/queries';
+import {
+  uploadProductImage,
+  uploadWorkshopVideo,
+  type WorkshopVideoWriteValues,
+} from '@/lib/supabase/queries';
 import { cn, errorText, youtubeId } from '@/lib/utils';
 import type { WorkshopVideoRow, WorkshopVideoSource } from '@/types/database';
 
@@ -35,6 +39,7 @@ export function WorkshopVideoDialog({
   const [sortOrder, setSortOrder] = useState('0');
   const [published, setPublished] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -69,6 +74,20 @@ export function WorkshopVideoDialog({
       toast.error('No se pudo subir el video', { description: errorText(e) });
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handlePosterFile(file: File | null) {
+    if (!file) return;
+    setUploadingPoster(true);
+    try {
+      const url = await uploadProductImage(createClient(), file);
+      setPosterUrl(url);
+      toast.success('Portada subida');
+    } catch (e) {
+      toast.error('No se pudo subir la portada', { description: errorText(e) });
+    } finally {
+      setUploadingPoster(false);
     }
   }
 
@@ -298,16 +317,50 @@ export function WorkshopVideoDialog({
                   </div>
                 </div>
 
-                <label className="mt-4 block">
+                <div className="mt-4">
                   <span className="hud-label mb-2 block">Portada (opcional)</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="clip-hud-sm inline-flex cursor-pointer items-center gap-2 border border-surf-green/50 bg-surf-green/10 px-4 py-2.5 font-display text-xs font-bold uppercase tracking-widest text-surf-green transition-colors hover:bg-surf-green hover:text-surface-deep">
+                      <ImagePlus className="h-4 w-4" />
+                      {uploadingPoster ? 'Subiendo…' : 'Subir imagen'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingPoster}
+                        onChange={(e) => {
+                          void handlePosterFile(e.target.files?.[0] ?? null);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <span className="font-mono text-[0.6rem] text-muted-foreground">o pega una URL</span>
+                  </div>
+                  {posterUrl && (
+                    <div className="mt-3 flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={posterUrl}
+                        alt=""
+                        className="h-16 w-16 border border-surface-grey object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPosterUrl('')}
+                        className="font-mono text-[0.6rem] uppercase tracking-widest text-muted-foreground hover:text-destructive"
+                      >
+                        quitar
+                      </button>
+                    </div>
+                  )}
                   <input
                     type="url"
                     value={posterUrl}
                     onChange={(e) => setPosterUrl(e.target.value)}
-                    className="admin-input"
+                    className="admin-input mt-3"
                     placeholder="URL de una imagen para la miniatura"
                   />
-                </label>
+                </div>
               </div>
 
               <label className="flex cursor-pointer items-center gap-2 border-t border-surface-grey pt-6 text-sm">

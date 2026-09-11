@@ -4,20 +4,27 @@ import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { AdminPage } from '@/components/admin/admin-shell';
+import { CustomerDirectory } from '@/components/admin/customer-directory';
 import { RepairIntakeDialog } from '@/components/admin/repair-intake-dialog';
 import { RepairKanban } from '@/components/admin/repair-kanban';
 import { createClient } from '@/lib/supabase/client';
-import { fetchAllRepairsStaff } from '@/lib/supabase/queries';
+import { fetchAllRepairsStaff, fetchArchivedRepairsStaff } from '@/lib/supabase/queries';
 import type { Repair } from '@/types/database';
 
 export default function ReparacionesPage() {
   const [repairs, setRepairs] = useState<Repair[] | null>(null);
+  const [archived, setArchived] = useState<Repair[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    fetchAllRepairsStaff(createClient()).then((data) => {
-      if (!cancelled) setRepairs(data);
-    });
+    const supabase = createClient();
+    Promise.all([fetchAllRepairsStaff(supabase), fetchArchivedRepairsStaff(supabase)]).then(
+      ([activas, archivadas]) => {
+        if (cancelled) return;
+        setRepairs(activas);
+        setArchived(archivadas);
+      }
+    );
     return () => {
       cancelled = true;
     };
@@ -48,8 +55,20 @@ export default function ReparacionesPage() {
           Cargando reparaciones…
         </p>
       ) : (
-        <RepairKanban repairs={repairs} onRepairsChange={setRepairs} />
+        <RepairKanban
+          repairs={repairs}
+          onRepairsChange={setRepairs}
+          onArchived={(repair) => setArchived((prev) => [repair, ...prev])}
+        />
       )}
+
+      <CustomerDirectory
+        repairs={archived}
+        onCustomerRemoved={(ids) => setArchived((prev) => prev.filter((r) => !ids.includes(r.id)))}
+        onRenewalMonthsChanged={(id, months) =>
+          setArchived((prev) => prev.map((r) => (r.id === id ? { ...r, renewal_months: months } : r)))
+        }
+      />
     </AdminPage>
   );
 }

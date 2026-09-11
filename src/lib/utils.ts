@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import { siteConfig } from '@/config/site';
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -40,10 +42,59 @@ export function youtubeId(url: string): string | null {
   return null;
 }
 
-/** Link de WhatsApp con mensaje prellenado. */
+/** Link de WhatsApp con mensaje prellenado, hacia el número del negocio. */
 export function whatsappLink(message: string) {
   const phone = process.env.NEXT_PUBLIC_WHATSAPP ?? '5213141502203';
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Link de WhatsApp hacia el número de un CLIENTE (para que el dueño le
+ * escriba desde el panel admin) — distinto de `whatsappLink`, que siempre
+ * apunta al negocio. Asume México (52) si el teléfono no trae lada de país.
+ */
+export function customerWhatsappLink(phone: string, message = '') {
+  const digits = phone.replace(/\D/g, '').replace(/^0+/, '');
+  const withCountry = digits.length === 10 ? `52${digits}` : digits;
+  const text = message ? `?text=${encodeURIComponent(message)}` : '';
+  return `https://wa.me/${withCountry}${text}`;
+}
+
+/**
+ * Fecha de hoy en YYYY-MM-DD, en hora LOCAL del navegador.
+ * `new Date().toISOString()` da la fecha en UTC — en Manzanillo (UTC-6),
+ * después de las 18:00 ya "es mañana" en UTC, y comparar contra eso corre
+ * "hoy" un día. Por eso este helper arma el string a mano con
+ * getFullYear/getMonth/getDate en vez de toISOString().
+ */
+export function todayISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Link directo a /rastreo con el código ya puesto — para mandárselo al cliente. */
+export function trackingLink(code: string): string {
+  return `${siteConfig.url}/rastreo?code=${encodeURIComponent(code)}`;
+}
+
+/**
+ * Mensaje de WhatsApp para mandarle el link de rastreo al cliente — mismo
+ * estilo (negritas, separadores, emoji) que `buildOrderMessage` en
+ * `cart-drawer.tsx` y el mensaje de citas, para que no llegue como texto
+ * plano suelto entre los demás mensajes del negocio.
+ */
+export function trackingWhatsappMessage(customerName: string, trackingCode: string): string {
+  return (
+    `🐸 *SURF CAFE PC STORE*\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `🔍 *Rastreo de tu equipo*\n\n` +
+    `Hola ${customerName}, aquí puedes ver en qué va tu equipo cuando quieras:\n` +
+    `${trackingLink(trackingCode)}\n\n` +
+    `_Cualquier duda, contáctanos por aquí._`
+  );
 }
 
 /**

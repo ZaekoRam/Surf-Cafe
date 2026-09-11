@@ -1,7 +1,14 @@
 /**
  * Motor de precios del cotizador. Precios base en MXN.
- * TODO(Carlo): validar cada precio con el negocio antes de publicar.
+ *
+ * Estos valores son solo el DEFAULT / fallback. Los reales los edita Surf
+ * Cafe desde /admin/mantenimiento y viven en Supabase (tablas
+ * `service_devices`, `service_tiers`, `service_issues`, `service_settings`).
+ * `computeEstimate()` recibe la config (de Supabase o este default) y ya
+ * calcula desde el primer paso, sin esperar a que elijan paquete.
  */
+
+import type { ServiceConfig } from '@/types/database';
 
 export type DeviceType = 'desktop' | 'laptop' | 'console' | 'allinone';
 export type ServiceTier = 'basico' | 'profundo' | 'premium';
@@ -93,35 +100,97 @@ export const issues: { id: IssueId; label: string; surcharge: number; note?: str
 
 export const pickupFee = 250;
 
+/** Fallback usado si Supabase no devuelve config (tablas vacías o sin red). */
+export const defaultServiceConfig: ServiceConfig = {
+  devices: devices.map((d, i) => ({
+    slug: d.id,
+    label: d.label,
+    hint: d.hint,
+    factor: d.factor,
+    sort_order: i,
+    active: true,
+  })),
+  tiers: tiers.map((t, i) => ({
+    slug: t.id,
+    label: t.label,
+    base: t.base,
+    duration: t.duration,
+    includes: [...t.includes],
+    accent: t.accent,
+    sort_order: i,
+    active: true,
+  })),
+  issues: issues.map((s, i) => ({
+    slug: s.id,
+    label: s.label,
+    surcharge: s.surcharge,
+    note: s.note ?? null,
+    sort_order: i,
+    active: true,
+  })),
+  settings: {
+    pickup_fee: pickupFee,
+    quote_heading: 'Cotiza tu mantenimiento',
+    quote_subheading:
+      'Cuatro preguntas y te damos un estimado al instante. El precio final se confirma después del diagnóstico físico — nunca cobramos sorpresas.',
+  },
+};
+
+export interface EstimateLine {
+  label: string;
+  amount: number;
+}
+export interface EstimateResult {
+  /** true mientras no se elige paquete: el total sale con el más barato como ancla. */
+  provisional: boolean;
+  min: number;
+  max: number;
+  breakdown: EstimateLine[];
+}
+
 /**
- * Precio estimado del servicio. Es un ESTIMADO: el precio final
- * se confirma tras el diagnostico fisico.
+ * Estimado del servicio, calculado desde el PRIMER paso.
+ *   - Sin equipo elegido: null (no hay nada que mostrar).
+ *   - Con equipo pero sin paquete: usa el paquete más barato como "desde".
+ *   - Con paquete elegido: total real.
+ * Es un ESTIMADO: el precio final se confirma tras el diagnóstico físico.
  */
-export function estimateQuote(input: {
-  device: DeviceType;
-  tier: ServiceTier;
-  issues: IssueId[];
-  homePickup: boolean;
-}) {
-  const device = devices.find((d) => d.id === input.device);
-  const tier = tiers.find((t) => t.id === input.tier);
-  if (!device || !tier) return { min: 0, max: 0, breakdown: [] as const };
+export function computeEstimate(
+  config: ServiceConfig,
+  input: {
+    device: string | null;
+    tier: string | null;
+    issues: string[];
+    homePickup: boolean;
+  }
+): EstimateResult | null {
+  const device = config.devices.find((d) => d.slug === input.device);
+  if (!device) return null;
+
+  const chosen = input.tier ? config.tiers.find((t) => t.slug === input.tier) : undefined;
+  const tier =
+    chosen ?? [...config.tiers].sort((a, b) => a.base - b.base)[0];
+  if (!tier) return null;
+  const provisional = !chosen;
 
   const labor = Math.round(tier.base * device.factor);
-  const surcharges = input.issues.reduce(
-    (sum, id) => sum + (issues.find((i) => i.id === id)?.surcharge ?? 0),
-    0
-  );
-  const pickup = input.homePickup ? pickupFee : 0;
+
+  const issueLines: EstimateLine[] = input.issues
+    .map((slug) => config.issues.find((i) => i.slug === slug))
+    .filter((i): i is NonNullable<typeof i> => Boolean(i) && (i as { surcharge: number }).surcharge > 0)
+    .map((i) => ({ label: i.label, amount: i.surcharge }));
+
+  const surcharges = issueLines.reduce((sum, l) => sum + l.amount, 0);
+  const pickup = input.homePickup ? config.settings.pickup_fee : 0;
   const subtotal = labor + surcharges + pickup;
 
   return {
-    /** Rango porque el diagnostico puede revelar refacciones. */
+    provisional,
     min: subtotal,
     max: Math.round(subtotal * 1.25),
     breakdown: [
       { label: `${tier.label} — ${device.label}`, amount: labor },
-      ...(surcharges ? [{ label: 'Fallas reportadas', amount: surcharges }] : []),
+      ...issueLines,
       ...(pickup ? [{ label: 'Recolección a domicilio', amount: pickup }] : []),
     ],
   };

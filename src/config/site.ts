@@ -8,7 +8,12 @@ export const siteConfig = {
   tagline: 'Tú... crea tus sueños, nosotros los ensamblamos.',
   description:
     'Venta, ensamble y mantenimiento de equipos de cómputo en Manzanillo, Colima. PC gamer, workstations, componentes y periféricos con garantía.',
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://surfcafeoficial.com',
+  // Dominio real donde vive el sitio HOY en Hostinger (10-sep-2026).
+  // surfcafeoficial.com todavía no se migra — ver Roadmap y Fases >
+  // "Bloqueado por el cliente". Cuando se migre, actualizar esta línea
+  // (afecta SEO/Open Graph y los links de rastreo/citas por WhatsApp) y
+  // volver a correr `npm run build:hostinger`.
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://darkred-curlew-858904.hostingersite.com',
   locale: 'es-MX',
   currency: 'MXN',
 
@@ -17,8 +22,8 @@ export const siteConfig = {
     whatsappRaw: '5213141502203',
     instagram: 'surfcafeoficial',
     instagramUrl: 'https://instagram.com/surfcafeoficial',
-    facebook: 'SURF CAFE systems',
-    facebookUrl: 'https://facebook.com/surfcafesystems',
+    facebook: 'SurfCafeOficial',
+    facebookUrl: 'https://www.facebook.com/SurfCafeOficial',
   },
 
   address: {
@@ -46,7 +51,7 @@ export const siteConfig = {
 
   /** Diferenciadores que ya comunica el negocio. */
   trust: {
-    yearsInMarket: 10,
+    yearsInMarket: 15,
     brands: 180,
     claims: ['Piso de venta', 'Área de ensamble', 'Mantenimiento en sitio'],
   },

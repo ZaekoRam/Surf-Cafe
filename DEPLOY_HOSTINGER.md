@@ -145,6 +145,12 @@ Los primeros los haces tú en el navegador (necesitan tu cuenta), los
    - [`supabase/migrations/0005_workshop_videos.sql`](supabase/migrations/0005_workshop_videos.sql)
      — tabla `workshop_videos` + bucket `workshop-videos` para la galería
      "El Taller" (subir clip o pegar link de YouTube desde /admin/taller).
+   - [`supabase/migrations/0006_workshop_video_orientation.sql`](supabase/migrations/0006_workshop_video_orientation.sql)
+     — flag `is_vertical` para que los Shorts/Reels usen marco 9:16.
+   - [`supabase/migrations/0007_service_pricing.sql`](supabase/migrations/0007_service_pricing.sql)
+     — tablas `service_devices` / `service_tiers` / `service_issues` /
+     `service_settings` para editar los precios del cotizador desde
+     /admin/mantenimiento.
 4. Verifica: **Table Editor** (menú lateral) debe mostrar las 5 tablas
    con 0 filas cada una — es normal, están vacías, faltan datos.
 

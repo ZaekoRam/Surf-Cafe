@@ -1,6 +1,10 @@
+'use client';
+
 import { Check, Clock } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { FrogMascot, type MascotState } from '@/components/brand/frog-mascot';
+import { gsap } from '@/lib/gsap';
 import { cn, formatMXN } from '@/lib/utils';
 import { kanbanColumns, repairStatusMeta, type Repair, type RepairStatus } from '@/types/database';
 
@@ -17,6 +21,31 @@ const mascotByStatus: Record<RepairStatus, MascotState> = {
 export function RepairTimeline({ repair }: { repair: Repair }) {
   const current = repairStatusMeta[repair.status];
   const eventByStatus = new Map(repair.timeline.map((e) => [e.status, e]));
+  const finalCostRef = useRef<HTMLSpanElement>(null);
+
+  // Cuando ya hay costo final (cambió del estimado), un glitch corto llama
+  // la atención sobre el precio nuevo — que no se sienta como que nada pasó.
+  // Sin `yoyo`: cada `repeat` termina limpio en los valores "to", así que no
+  // importa si el número de repeticiones es par o impar. El `.set()` final
+  // deja todo en su lugar de verdad (opacity/x/skew) antes de soltar el
+  // color — evita que quede a medias si React StrictMode remonta el efecto.
+  useEffect(() => {
+    if (!repair.final_cost || !finalCostRef.current) return;
+    const el = finalCostRef.current;
+    const tl = gsap.timeline();
+    tl.fromTo(
+      el,
+      { x: -3, skewX: 8, color: '#00F0FF', opacity: 0.5 },
+      { x: 3, skewX: -8, color: '#FF00A8', opacity: 1, duration: 0.045, repeat: 7, ease: 'none' }
+    )
+      .set(el, { x: 0, skewX: 0, opacity: 1 })
+      .to(el, { color: '#21E14B', duration: 0.35, ease: 'power2.out' })
+      .set(el, { clearProps: 'all' });
+    return () => {
+      tl.kill();
+      gsap.set(el, { clearProps: 'all' });
+    };
+  }, [repair.final_cost]);
 
   return (
     <div className="hud-panel p-8">
@@ -99,15 +128,30 @@ export function RepairTimeline({ repair }: { repair: Repair }) {
       <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-surface-grey pt-6">
         <div>
           <dt className="font-mono text-[0.6rem] uppercase tracking-[0.25em] text-muted-foreground">
-            Estimado
+            {repair.final_cost ? 'Costo final' : 'Estimado'}
           </dt>
-          <dd className="font-display text-lg font-bold text-surf-yellow">
-            {repair.estimated_cost ? formatMXN(repair.estimated_cost) : '—'}
+          <dd className="font-display text-lg font-bold">
+            {repair.final_cost ? (
+              <>
+                {repair.estimated_cost != null && repair.estimated_cost !== repair.final_cost && (
+                  <span className="mr-2 text-sm font-normal text-muted-foreground/50 line-through">
+                    {formatMXN(repair.estimated_cost)}
+                  </span>
+                )}
+                <span ref={finalCostRef} className="text-surf-green">
+                  {formatMXN(repair.final_cost)}
+                </span>
+              </>
+            ) : repair.estimated_cost != null ? (
+              <span className="text-surf-yellow">{formatMXN(repair.estimated_cost)}</span>
+            ) : (
+              '—'
+            )}
           </dd>
         </div>
         <div>
           <dt className="font-mono text-[0.6rem] uppercase tracking-[0.25em] text-muted-foreground">
-            Entrega prometida
+            Entrega estimada
           </dt>
           <dd className="font-display text-lg font-bold">
             {repair.promised_at

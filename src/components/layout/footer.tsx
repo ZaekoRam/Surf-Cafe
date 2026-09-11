@@ -12,6 +12,14 @@ export function Footer() {
     <footer className="relative mt-32 border-t border-surf-green/20 bg-surface-deep/80">
       <div className="hud-rule absolute inset-x-0 top-0" />
 
+      {/* Ubícanos */}
+      <div className="border-b border-surface-grey/60 py-12">
+        <div className="container">
+          <h3 className="hud-label mb-5">Ubícanos</h3>
+          <LocationMap />
+        </div>
+      </div>
+
       <div className="container grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4">
         {/* Marca */}
         <div className="space-y-4">
@@ -95,14 +103,6 @@ export function Footer() {
               </a>
             </li>
           </ul>
-        </div>
-      </div>
-
-      {/* Ubícanos */}
-      <div className="border-t border-surface-grey/60 py-12">
-        <div className="container">
-          <h3 className="hud-label mb-5">Ubícanos</h3>
-          <LocationMap />
         </div>
       </div>
 

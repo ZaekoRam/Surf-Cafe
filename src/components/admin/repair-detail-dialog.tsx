@@ -1,13 +1,13 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { Check, X } from 'lucide-react';
+import { Check, Copy, MessageCircle, Trash2, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { createClient } from '@/lib/supabase/client';
-import { updateRepairStaff } from '@/lib/supabase/queries';
-import { cn, errorText } from '@/lib/utils';
+import { deleteRepairStaff, updateRepairStaff } from '@/lib/supabase/queries';
+import { cn, customerWhatsappLink, errorText, trackingLink, trackingWhatsappMessage } from '@/lib/utils';
 import { kanbanColumns, repairStatusMeta, type Repair, type RepairStatus } from '@/types/database';
 
 /** Para el <input type="date">: ISO -> YYYY-MM-DD, y de vuelta a ISO. */
@@ -30,11 +30,13 @@ export function RepairDetailDialog({
   open,
   onOpenChange,
   onSaved,
+  onDeleted,
 }: {
   repair: Repair | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: (updated: Repair) => void;
+  onDeleted?: (id: string) => void;
 }) {
   const [status, setStatus] = useState<RepairStatus>('recibido');
   const [note, setNote] = useState('');
@@ -80,6 +82,36 @@ export function RepairDetailDialog({
     }
   }
 
+  async function handleCopyLink() {
+    if (!repair) return;
+    try {
+      await navigator.clipboard.writeText(trackingLink(repair.tracking_code));
+      toast.success('Link de rastreo copiado');
+    } catch {
+      toast.error('No se pudo copiar el link');
+    }
+  }
+
+  async function handleDelete() {
+    if (!repair || !onDeleted) return;
+    if (
+      !window.confirm(
+        `¿Eliminar la orden ${repair.tracking_code} de ${repair.customer_name}? No se puede deshacer.`
+      )
+    )
+      return;
+    setSaving(true);
+    try {
+      await deleteRepairStaff(createClient(), repair.id);
+      toast.success(`${repair.tracking_code} eliminada`);
+      onDeleted(repair.id);
+    } catch (e) {
+      toast.error('No se pudo eliminar', { description: errorText(e) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -91,6 +123,28 @@ export function RepairDetailDialog({
               <div>
                 <Dialog.Title className="flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-surf-green">
                   <span className="code-chip">{repair.tracking_code}</span>
+                  <button
+                    type="button"
+                    aria-label="Copiar link de rastreo"
+                    title="Copiar link de rastreo"
+                    onClick={handleCopyLink}
+                    className="p-1 text-muted-foreground transition-colors hover:text-surf-green"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                  <a
+                    href={customerWhatsappLink(
+                      repair.customer_phone,
+                      trackingWhatsappMessage(repair.customer_name, repair.tracking_code)
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Enviar link por WhatsApp"
+                    title="Enviar link por WhatsApp"
+                    className="p-1 text-muted-foreground transition-colors hover:text-surf-green"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </a>
                 </Dialog.Title>
                 <Dialog.Description className="mt-2 text-sm text-foreground/80">
                   {repair.customer_name} · {repair.device_model ?? repair.device_type} ·{' '}
@@ -225,22 +279,41 @@ export function RepairDetailDialog({
               )}
             </div>
 
-            <footer className="glass-strong sticky bottom-0 z-10 flex justify-end gap-3 border-t border-surface-grey p-6">
-              <Dialog.Close asChild>
+            <footer className="glass-strong sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-surface-grey p-6">
+              {onDeleted ? (
                 <button
                   type="button"
-                  className="px-5 py-2.5 font-display text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
                 >
-                  Cancelar
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar
                 </button>
-              </Dialog.Close>
-              <button
-                type="submit"
-                disabled={saving}
-                className={cn('btn-neon px-5 py-2.5 text-xs', saving && 'pointer-events-none opacity-60')}
-              >
-                {saving ? 'Guardando…' : 'Guardar'}
-              </button>
+              ) : (
+                <span />
+              )}
+
+              <div className="flex gap-3">
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="px-5 py-2.5 font-display text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                  >
+                    Cancelar
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className={cn(
+                    'btn-neon px-5 py-2.5 text-xs',
+                    saving && 'pointer-events-none opacity-60'
+                  )}
+                >
+                  {saving ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
             </footer>
           </form>
         </Dialog.Content>

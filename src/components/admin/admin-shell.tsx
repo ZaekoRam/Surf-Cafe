@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Sparkles,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 const items: { href: string; label: string; icon: LucideIcon; code: string }[] = [
   { href: '/admin', label: 'Panel', icon: LayoutDashboard, code: 'HUD' },
   { href: '/admin/reparaciones', label: 'Reparaciones', icon: Wrench, code: 'REP' },
+  { href: '/admin/mantenimiento', label: 'Mantenimiento', icon: Sparkles, code: 'MTO' },
   { href: '/admin/productos', label: 'Productos', icon: Package, code: 'PRD' },
   { href: '/admin/inventario', label: 'Inventario', icon: Boxes, code: 'INV' },
   { href: '/admin/taller', label: 'El Taller', icon: Film, code: 'VID' },

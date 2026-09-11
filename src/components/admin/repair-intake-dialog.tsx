@@ -1,14 +1,21 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { Plus, X } from 'lucide-react';
+import { Check, Copy, MessageCircle, Plus, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { devices, issues, tiers } from '@/config/services';
 import { createClient } from '@/lib/supabase/client';
 import { insertRepairStaff } from '@/lib/supabase/queries';
-import { cn, errorText, generateTrackingCode } from '@/lib/utils';
+import {
+  cn,
+  customerWhatsappLink,
+  errorText,
+  generateTrackingCode,
+  trackingLink,
+  trackingWhatsappMessage,
+} from '@/lib/utils';
 import type { Repair } from '@/types/database';
 
 /**
@@ -37,6 +44,7 @@ export function RepairIntakeDialog({
   const [estimated, setEstimated] = useState('');
   const [promised, setPromised] = useState('');
   const [saving, setSaving] = useState(false);
+  const [created, setCreated] = useState<Repair | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +58,7 @@ export function RepairIntakeDialog({
     setOtherIssue('');
     setEstimated('');
     setPromised('');
+    setCreated(null);
   }, [open]);
 
   function toggleIssue(label: string) {
@@ -81,14 +90,21 @@ export function RepairIntakeDialog({
         notes: null,
       });
       onCreated(created);
-      toast.success(`Equipo registrado — ${created.tracking_code}`, {
-        description: 'Dale el código al cliente para que rastree su equipo.',
-      });
-      setOpen(false);
+      setCreated(created);
+      toast.success(`Equipo registrado — ${created.tracking_code}`);
     } catch (e) {
       toast.error('No se pudo registrar el equipo', { description: errorText(e) });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCopyLink(repair: Repair) {
+    try {
+      await navigator.clipboard.writeText(trackingLink(repair.tracking_code));
+      toast.success('Link de rastreo copiado');
+    } catch {
+      toast.error('No se pudo copiar el link');
     }
   }
 
@@ -100,6 +116,77 @@ export function RepairIntakeDialog({
         <Dialog.Overlay className="fixed inset-0 z-[70] bg-surface-deep/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
 
         <Dialog.Content className="glass-strong fixed left-1/2 top-1/2 z-[71] max-h-[90vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto border border-surf-green/30 p-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95">
+          {created ? (
+            <div>
+              <header className="glass-strong sticky top-0 z-10 flex items-center justify-between border-b border-surface-grey p-6">
+                <div>
+                  <Dialog.Title className="flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-surf-green">
+                    <Check className="h-5 w-5" />
+                    Equipo registrado
+                  </Dialog.Title>
+                  <Dialog.Description className="mt-1 text-xs text-muted-foreground">
+                    Mándale el link al cliente — llega directo a su rastreo, sin teclear el código.
+                  </Dialog.Description>
+                </div>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    aria-label="Cerrar"
+                    className="p-2 text-muted-foreground transition-colors hover:text-surf-green"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </Dialog.Close>
+              </header>
+
+              <div className="space-y-6 p-6">
+                <div className="hud-panel p-5 text-center">
+                  <span className="code-chip text-base">{created.tracking_code}</span>
+                  <p className="mt-3 break-all font-mono text-xs text-surf-green">
+                    {trackingLink(created.tracking_code)}
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(created)}
+                    className="clip-hud-sm flex items-center justify-center gap-2 border border-surface-grey px-4 py-3 text-xs font-bold uppercase tracking-widest text-foreground/80 transition-colors hover:border-surf-green hover:text-surf-green"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copiar link
+                  </button>
+                  <a
+                    href={customerWhatsappLink(
+                      created.customer_phone,
+                      trackingWhatsappMessage(created.customer_name, created.tracking_code)
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-neon justify-center px-4 py-3 text-xs"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Enviar por WhatsApp
+                  </a>
+                </div>
+              </div>
+
+              <footer className="glass-strong sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-surface-grey p-6">
+                <button
+                  type="button"
+                  onClick={() => setCreated(null)}
+                  className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                >
+                  Registrar otro equipo
+                </button>
+                <Dialog.Close asChild>
+                  <button type="button" className="btn-neon px-5 py-2.5 text-xs">
+                    Listo
+                  </button>
+                </Dialog.Close>
+              </footer>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit}>
             <header className="glass-strong sticky top-0 z-10 flex items-center justify-between border-b border-surface-grey p-6">
               <div>
@@ -267,6 +354,7 @@ export function RepairIntakeDialog({
               </button>
             </footer>
           </form>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

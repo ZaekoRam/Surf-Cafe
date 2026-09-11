@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, ShoppingCart, X } from 'lucide-react';
+import { Facebook, Instagram, Menu, MessageCircle, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -9,8 +9,20 @@ import { useEffect, useState } from 'react';
 import { Logo } from '@/components/brand/logo';
 import { mainNav } from '@/config/nav';
 import { useMounted } from '@/hooks/use-mounted';
-import { cn } from '@/lib/utils';
+import { siteConfig } from '@/config/site';
+import { cn, whatsappLink } from '@/lib/utils';
 import { selectCount, useCart } from '@/store/cart';
+
+/** Mismos tres canales que el footer, pero visibles arriba (el cliente pidió no esconderlos hasta abajo). */
+const socialLinks = [
+  { href: siteConfig.contact.instagramUrl, label: 'Instagram', icon: Instagram },
+  { href: siteConfig.contact.facebookUrl, label: 'Facebook', icon: Facebook },
+  {
+    href: whatsappLink('Hola Surf Cafe, vengo de la pagina web.'),
+    label: 'WhatsApp',
+    icon: MessageCircle,
+  },
+] as const;
 
 export function Navbar() {
   const pathname = usePathname();
@@ -71,22 +83,42 @@ export function Navbar() {
         </ul>
 
         <div className="flex items-center gap-2">
+          {/* --- Redes sociales --- */}
+          <ul className="hidden items-center gap-1.5 sm:flex">
+            {socialLinks.map(({ href, label, icon: Icon }) => (
+              <li key={label}>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  title={label}
+                  className="clip-hud-sm flex h-9 w-9 items-center justify-center border border-surface-grey bg-surface-metal/60 text-foreground/70 transition-all hover:border-surf-green/40 hover:bg-surf-green/10 hover:text-surf-green hover:shadow-neon-sm"
+                >
+                  <Icon className="h-4 w-4" />
+                </a>
+              </li>
+            ))}
+          </ul>
+
           {/* --- Carrito --- */}
+          {/* La cuenta va INLINE (no como badge flotante): el `clip-hud-sm` del
+              botón recorta cualquier cosa que se salga, y el badge se veía cortado. */}
           <button
             type="button"
             onClick={openCart}
             aria-label="Abrir carrito"
-            className="clip-hud-sm relative flex items-center gap-2 border border-surf-green/40 bg-surf-green/5 px-4 py-2.5 text-surf-green transition-all hover:bg-surf-green/15 hover:shadow-neon"
+            className="clip-hud-sm flex items-center gap-2 border border-surf-green/40 bg-surf-green/5 px-4 py-2.5 text-surf-green transition-all hover:bg-surf-green/15 hover:shadow-neon"
           >
             <ShoppingCart className="h-4 w-4" />
-            <span className="hidden font-mono text-xs sm:inline">
+            <span
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center px-1 font-mono text-xs font-bold',
+                mounted && count > 0 && 'bg-surf-yellow text-surface-deep'
+              )}
+            >
               {mounted ? count : 0}
             </span>
-            {mounted && count > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-surf-yellow font-mono text-[0.55rem] font-bold text-surface-deep">
-                {count}
-              </span>
-            )}
           </button>
 
           {/* --- Toggle movil --- */}
@@ -130,6 +162,24 @@ export function Navbar() {
                       <span className="text-xs text-muted-foreground">{item.description}</span>
                     </span>
                   </Link>
+                </li>
+              ))}
+            </ul>
+
+            {/* Redes sociales: repetidas aquí para las pantallas más chicas (< sm), donde el bloque de arriba se oculta. */}
+            <ul className="container flex items-center gap-3 border-t border-surface-grey/60 py-4 sm:hidden">
+              {socialLinks.map(({ href, label, icon: Icon }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    title={label}
+                    className="clip-hud-sm flex h-9 w-9 items-center justify-center border border-surface-grey bg-surface-metal/60 text-foreground/70 transition-all hover:border-surf-green/40 hover:bg-surf-green/10 hover:text-surf-green"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
                 </li>
               ))}
             </ul>

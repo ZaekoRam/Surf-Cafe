@@ -93,8 +93,16 @@ npm run typecheck
   auto-fit por bounding box real (`THREE.Box3`) — nunca pongas un `scale`
   a mano copiado de otro modelo, la escala de origen es arbitraria por
   archivo.
-- **Precios:** los del cotizador (`src/config/services.ts`) son estimados míos,
-  no del negocio. No presentarlos como definitivos.
+- **Precios del cotizador:** editables desde `/admin/mantenimiento` (tablas
+  `service_devices` / `service_tiers` / `service_issues` / `service_settings`
+  en Supabase). `src/config/services.ts` ya solo tiene el `defaultServiceConfig`
+  (fallback si Supabase no responde) y `computeEstimate()`. La página
+  `/mantenimiento` está partida en `page.tsx` (server, metadata) +
+  `mantenimiento-content.tsx` (client, hace fetch de la config). El
+  `QuoteWizard` recibe la config por prop y calcula el estimado **desde el
+  primer paso** (usa el paquete más barato como ancla "desde" hasta que
+  elijan uno). `maintenanceSteps` (scrollytelling del home) sigue en
+  `services.ts`, no se movió.
 - **Comparador de precio de mercado (DDTech/Cyberpuerta) es manual, no scraper:**
   ver `src/lib/market-price.ts` para el porqué (CORS + sin backend). No
   intentar convertirlo en un fetch en vivo sin antes resolver dónde correría

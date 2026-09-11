@@ -5,35 +5,33 @@ import { ArrowLeft, ArrowRight, Check, MessageCircle } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { FrogMascot, type MascotState } from '@/components/brand/frog-mascot';
-import { devices, estimateQuote, issues, tiers } from '@/config/services';
+import { computeEstimate } from '@/config/services';
 import { cn, formatMXN, whatsappLink } from '@/lib/utils';
 import { useQuote } from '@/store/quote';
+import type { ServiceConfig } from '@/types/database';
 
 const steps = ['Equipo', 'Falla', 'Paquete', 'Entrega', 'Resumen'] as const;
 
 /** La rana reacciona al paso del wizard. */
 const mascotByStep: MascotState[] = ['idle', 'inspecting', 'cleaning', 'tuning', 'proud'];
 
-export function QuoteWizard() {
+export function QuoteWizard({ config }: { config: ServiceConfig }) {
   const state = useQuote();
+  const { devices, tiers, issues } = config;
 
-  // El estimado se calcula aquí (no como selector de Zustand): `estimateQuote`
-  // regresa un objeto nuevo cada vez y eso haría un bucle infinito de renders
-  // en Zustand v5. `useMemo` lo estabiliza mientras no cambien los campos.
+  // Estimado calculado desde el primer paso. `useMemo` lo estabiliza (un
+  // objeto nuevo por render haría bucle infinito con el store de Zustand v5).
   const estimate = useMemo(
     () =>
-      state.device && state.tier
-        ? estimateQuote({
-            device: state.device,
-            tier: state.tier,
-            issues: state.issues,
-            homePickup: state.homePickup,
-          })
-        : null,
-    [state.device, state.tier, state.issues, state.homePickup]
+      computeEstimate(config, {
+        device: state.device,
+        tier: state.tier,
+        issues: state.issues,
+        homePickup: state.homePickup,
+      }),
+    [config, state.device, state.tier, state.issues, state.homePickup]
   );
 
-  // Cada paso decide si se puede avanzar.
   const canAdvance = [
     Boolean(state.device),
     state.issues.length > 0 || state.otherIssue.trim().length > 0,
@@ -42,11 +40,13 @@ export function QuoteWizard() {
     false,
   ][state.step];
 
+  const deviceLabel = devices.find((d) => d.slug === state.device)?.label ?? '';
+  const tierLabel = tiers.find((t) => t.slug === state.tier)?.label ?? '';
+
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
       {/* ------------------- Panel del wizard ------------------- */}
       <div className="hud-panel p-8">
-        {/* Indicador de pasos */}
         <ol className="mb-10 flex flex-wrap gap-x-2 gap-y-3">
           {steps.map((label, i) => (
             <li key={label} className="flex items-center gap-2">
@@ -90,13 +90,13 @@ export function QuoteWizard() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {devices.map((d) => (
                     <button
-                      key={d.id}
+                      key={d.slug}
                       type="button"
-                      onClick={() => state.setDevice(d.id)}
-                      aria-pressed={state.device === d.id}
+                      onClick={() => state.setDevice(d.slug)}
+                      aria-pressed={state.device === d.slug}
                       className={cn(
                         'clip-hud-sm border p-5 text-left transition-all',
-                        state.device === d.id
+                        state.device === d.slug
                           ? 'border-surf-green bg-surf-green/10 shadow-neon'
                           : 'border-surface-grey hover:border-surf-green/50'
                       )}
@@ -104,7 +104,9 @@ export function QuoteWizard() {
                       <span className="block font-display text-sm font-bold uppercase tracking-wide">
                         {d.label}
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">{d.hint}</span>
+                      {d.hint && (
+                        <span className="mt-1 block text-xs text-muted-foreground">{d.hint}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -120,18 +122,25 @@ export function QuoteWizard() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {issues.map((issue) => (
                     <button
-                      key={issue.id}
+                      key={issue.slug}
                       type="button"
-                      onClick={() => state.toggleIssue(issue.id)}
-                      aria-pressed={state.issues.includes(issue.id)}
+                      onClick={() => state.toggleIssue(issue.slug)}
+                      aria-pressed={state.issues.includes(issue.slug)}
                       className={cn(
                         'clip-hud-sm border p-4 text-left transition-all',
-                        state.issues.includes(issue.id)
+                        state.issues.includes(issue.slug)
                           ? 'border-surf-yellow bg-surf-yellow/10'
                           : 'border-surface-grey hover:border-surf-yellow/50'
                       )}
                     >
-                      <span className="block text-sm font-medium">{issue.label}</span>
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium">{issue.label}</span>
+                        {issue.surcharge > 0 && (
+                          <span className="shrink-0 font-mono text-[0.65rem] text-surf-yellow">
+                            +{formatMXN(issue.surcharge)}
+                          </span>
+                        )}
+                      </span>
                       {issue.note && (
                         <span className="mt-1 block text-xs text-surf-cyan">{issue.note}</span>
                       )}
@@ -162,13 +171,13 @@ export function QuoteWizard() {
                 <div className="space-y-3">
                   {tiers.map((tier) => (
                     <button
-                      key={tier.id}
+                      key={tier.slug}
                       type="button"
-                      onClick={() => state.setTier(tier.id)}
-                      aria-pressed={state.tier === tier.id}
+                      onClick={() => state.setTier(tier.slug)}
+                      aria-pressed={state.tier === tier.slug}
                       className={cn(
                         'clip-hud-sm flex w-full items-center justify-between gap-4 border p-5 text-left transition-all',
-                        state.tier === tier.id
+                        state.tier === tier.slug
                           ? 'border-surf-green bg-surf-green/10 shadow-neon'
                           : 'border-surface-grey hover:border-surf-green/50'
                       )}
@@ -178,7 +187,7 @@ export function QuoteWizard() {
                           {tier.label}
                         </span>
                         <span className="mt-1 block text-xs text-muted-foreground">
-                          {tier.includes.length} servicios · {tier.duration}
+                          {tier.includes.length} servicios{tier.duration ? ` · ${tier.duration}` : ''}
                         </span>
                       </span>
                       <span className="shrink-0 font-display text-lg font-bold text-surf-yellow">
@@ -200,7 +209,11 @@ export function QuoteWizard() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
                     { value: false, label: 'Lo llevo a la tienda', hint: 'Salagua, Manzanillo' },
-                    { value: true, label: 'Pasen por él', hint: 'Costo adicional de recolección' },
+                    {
+                      value: true,
+                      label: 'Pasen por él',
+                      hint: `+ ${formatMXN(config.settings.pickup_fee)} de recolección`,
+                    },
                   ].map((option) => (
                     <button
                       key={String(option.value)}
@@ -222,9 +235,8 @@ export function QuoteWizard() {
                   ))}
                 </div>
 
-                {/* TODO(fase 2): react-day-picker + slots reales desde `appointments`. */}
                 <p className="mt-6 border-l-2 border-surf-cyan/50 bg-surf-cyan/5 p-4 text-sm text-muted-foreground">
-                  El calendario de citas se conecta en la fase 2. Por ahora cerramos la cita por
+                  El calendario de citas se conecta más adelante. Por ahora cerramos la cita por
                   WhatsApp con el resumen que sigue.
                 </p>
               </fieldset>
@@ -237,7 +249,10 @@ export function QuoteWizard() {
 
                 <dl className="space-y-3">
                   {estimate.breakdown.map((line) => (
-                    <div key={line.label} className="flex justify-between border-b border-surface-grey pb-3">
+                    <div
+                      key={line.label}
+                      className="flex justify-between border-b border-surface-grey pb-3"
+                    >
                       <dt className="text-sm text-foreground/75">{line.label}</dt>
                       <dd className="font-mono text-sm">{formatMXN(line.amount)}</dd>
                     </div>
@@ -249,11 +264,11 @@ export function QuoteWizard() {
                     `🐸 *SURF CAFE PC STORE*\n` +
                       `━━━━━━━━━━━━━━━━\n` +
                       `🔧 *Cotización de mantenimiento*\n\n` +
-                      `▸ Equipo: *${devices.find((d) => d.id === state.device)?.label}*\n` +
-                      `▸ Paquete: *${tiers.find((t) => t.id === state.tier)?.label}*\n` +
+                      `▸ Equipo: *${deviceLabel}*\n` +
+                      `▸ Paquete: *${tierLabel}*\n` +
                       (state.issues.length
                         ? `▸ Fallas: ${state.issues
-                            .map((id) => issues.find((i) => i.id === id)?.label)
+                            .map((slug) => issues.find((i) => i.slug === slug)?.label)
                             .filter(Boolean)
                             .join(', ')}\n`
                         : '') +
@@ -307,15 +322,31 @@ export function QuoteWizard() {
         <p className="hud-label mt-4 text-center">Estimado en vivo</p>
 
         {estimate ? (
-          <p className="mt-3 text-center font-display text-3xl font-black text-glow text-surf-green">
-            {formatMXN(estimate.min)}
-            <span className="block text-sm font-medium text-muted-foreground">
-              a {formatMXN(estimate.max)}
-            </span>
-          </p>
+          <>
+            <p className="mt-3 text-center font-display text-3xl font-black text-glow text-surf-green">
+              {estimate.provisional && (
+                <span className="block text-xs font-bold tracking-widest text-muted-foreground">
+                  desde
+                </span>
+              )}
+              {formatMXN(estimate.min)}
+              <span className="block text-sm font-medium text-muted-foreground">
+                a {formatMXN(estimate.max)}
+              </span>
+            </p>
+
+            <dl className="mt-5 space-y-2 border-t border-surface-grey pt-4">
+              {estimate.breakdown.map((line) => (
+                <div key={line.label} className="flex justify-between gap-3 text-xs">
+                  <dt className="text-muted-foreground">{line.label}</dt>
+                  <dd className="shrink-0 font-mono text-foreground/80">{formatMXN(line.amount)}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
         ) : (
           <p className="mt-3 text-center text-sm text-muted-foreground">
-            Elige equipo y paquete para ver el precio.
+            Elige tu equipo para ver el estimado.
           </p>
         )}
 

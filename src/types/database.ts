@@ -112,6 +112,15 @@ export interface Repair {
   received_at: string;
   promised_at: string | null;
   delivered_at: string | null;
+  /** Cuándo se archivó desde el Kanban (sale del tablero, pero sigue en "Clientes atendidos"). */
+  archived_at: string | null;
+  /**
+   * Cada cuántos meses le toca su próximo mantenimiento a este cliente —
+   * se lee/edita sobre la reparación más reciente de cada uno en
+   * "Clientes atendidos". `null` = usa el default global
+   * (RENEWAL_REMINDER_MONTHS en config/customers.ts).
+   */
+  renewal_months: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +129,52 @@ export interface RepairEvent {
   status: RepairStatus;
   at: string;
   note?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Cotizador de mantenimiento — precios editables desde /admin
+// ---------------------------------------------------------------------------
+
+export interface ServiceDevice {
+  slug: string;
+  label: string;
+  hint: string | null;
+  factor: number;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface ServicePackage {
+  slug: string;
+  label: string;
+  base: number;
+  duration: string | null;
+  includes: string[];
+  accent: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface ServiceIssue {
+  slug: string;
+  label: string;
+  surcharge: number;
+  note: string | null;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface ServiceSettings {
+  pickup_fee: number;
+  quote_heading: string;
+  quote_subheading: string;
+}
+
+export interface ServiceConfig {
+  devices: ServiceDevice[];
+  tiers: ServicePackage[];
+  issues: ServiceIssue[];
+  settings: ServiceSettings;
 }
 
 export type WorkshopVideoSource = 'upload' | 'youtube';

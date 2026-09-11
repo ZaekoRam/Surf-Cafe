@@ -11,14 +11,14 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { GripVertical, Phone, SlidersHorizontal } from 'lucide-react';
+import { Archive, CalendarClock, GripVertical, Phone, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { RepairDetailDialog } from '@/components/admin/repair-detail-dialog';
 import { createClient } from '@/lib/supabase/client';
-import { updateRepairStatusStaff } from '@/lib/supabase/queries';
-import { cn, formatMXN } from '@/lib/utils';
+import { archiveRepairStaff, deleteRepairStaff, updateRepairStatusStaff } from '@/lib/supabase/queries';
+import { cn, errorText, formatMXN } from '@/lib/utils';
 import {
   kanbanColumns,
   repairStatusMeta,
@@ -36,22 +36,22 @@ const toneRing: Record<string, string> = {
 
 /**
  * Tablero de ordenes de reparacion. Es un componente controlado: la lista
- * (`repairs`) y su setter (`onRepairsChange`) viven en la pagina padre, que
- * es quien la trae de Supabase — asi el alta de un equipo nuevo desde el
- * diálogo de registro aparece aqui sin recargar.
+ * (`repairs`) y su setter (`onRepairsChange`) viven en la pagina padre.
  *
- * Dos formas de mover una orden:
- *   - Arrastrar la tarjeta a otra columna: cambio rápido de estado, sin
- *     nota. Optimista + escritura a Supabase, y se revierte si falla.
- *   - Botón de detalle: abre el diálogo para cambiar estado, escribir la
- *     nota que ve el cliente en /rastreo, y ajustar costos/entrega.
+ *   - Arrastrar la tarjeta a otra columna: cambio rápido de estado.
+ *   - Botón de detalle (controles): diálogo con nota para el cliente y costos.
+ *   - Botón de basurero: elimina la orden (con confirmación) — para las que
+ *     ya se entregaron/cancelaron y ya no hace falta tener en el tablero.
  */
 export function RepairKanban({
   repairs,
   onRepairsChange,
+  onArchived,
 }: {
   repairs: Repair[];
   onRepairsChange: (next: Repair[]) => void;
+  /** Se llama con la orden que se acaba de archivar, para que la página la sume a "Clientes atendidos". */
+  onArchived?: (repair: Repair) => void;
 }) {
   const [dragging, setDragging] = useState<Repair | null>(null);
   const [detail, setDetail] = useState<Repair | null>(null);
@@ -94,6 +94,37 @@ export function RepairKanban({
     onRepairsChange(repairs.map((r) => (r.id === updated.id ? updated : r)));
   }
 
+  async function handleDelete(repair: Repair) {
+    if (
+      !window.confirm(
+        `¿Eliminar la orden ${repair.tracking_code} de ${repair.customer_name}? No se puede deshacer.`
+      )
+    )
+      return;
+    const snapshot = repairs;
+    onRepairsChange(repairs.filter((r) => r.id !== repair.id));
+    try {
+      await deleteRepairStaff(createClient(), repair.id);
+      toast.success(`${repair.tracking_code} eliminada`);
+    } catch (e) {
+      onRepairsChange(snapshot);
+      toast.error('No se pudo eliminar', { description: errorText(e) });
+    }
+  }
+
+  async function handleArchive(repair: Repair) {
+    const snapshot = repairs;
+    onRepairsChange(repairs.filter((r) => r.id !== repair.id));
+    try {
+      await archiveRepairStaff(createClient(), repair.id);
+      toast.success(`${repair.tracking_code} archivada`);
+      onArchived?.({ ...repair, archived_at: new Date().toISOString() });
+    } catch (e) {
+      onRepairsChange(snapshot);
+      toast.error('No se pudo archivar', { description: errorText(e) });
+    }
+  }
+
   return (
     <>
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -104,6 +135,8 @@ export function RepairKanban({
               status={status}
               repairs={repairs.filter((r) => r.status === status)}
               onOpenDetail={openDetail}
+              onDelete={handleDelete}
+              onArchive={handleArchive}
             />
           ))}
         </div>
@@ -117,6 +150,10 @@ export function RepairKanban({
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onSaved={handleSaved}
+        onDeleted={(id) => {
+          onRepairsChange(repairs.filter((r) => r.id !== id));
+          setDetailOpen(false);
+        }}
       />
     </>
   );
@@ -126,13 +163,18 @@ function Column({
   status,
   repairs,
   onOpenDetail,
+  onDelete,
+  onArchive,
 }: {
   status: RepairStatus;
   repairs: Repair[];
   onOpenDetail: (repair: Repair) => void;
+  onDelete: (repair: Repair) => void;
+  onArchive: (repair: Repair) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const meta = repairStatusMeta[status];
+  const total = repairs.reduce((sum, r) => sum + (r.estimated_cost ?? 0), 0);
 
   return (
     <section
@@ -142,11 +184,16 @@ function Column({
         isOver ? 'border-surf-green bg-surf-green/5' : 'border-surface-grey'
       )}
     >
-      <header className="flex items-center justify-between border-b border-surface-grey pb-2">
-        <h3 className="font-display text-[0.7rem] font-bold uppercase tracking-widest">
-          {meta.short}
-        </h3>
-        <span className="font-mono text-xs text-surf-green">{repairs.length}</span>
+      <header className="border-b border-surface-grey pb-2">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-[0.7rem] font-bold uppercase tracking-widest">
+            {meta.short}
+          </h3>
+          <span className="font-mono text-xs text-surf-green">{repairs.length}</span>
+        </div>
+        {total > 0 && (
+          <p className="mt-0.5 font-mono text-[0.6rem] text-surf-yellow">{formatMXN(total)}</p>
+        )}
       </header>
 
       {repairs.length === 0 ? (
@@ -155,7 +202,13 @@ function Column({
         </p>
       ) : (
         repairs.map((repair) => (
-          <Card key={repair.id} repair={repair} onOpenDetail={onOpenDetail} />
+          <Card
+            key={repair.id}
+            repair={repair}
+            onOpenDetail={onOpenDetail}
+            onDelete={onDelete}
+            onArchive={status === 'entregado' ? onArchive : undefined}
+          />
         ))
       )}
     </section>
@@ -166,10 +219,14 @@ function Card({
   repair,
   overlay = false,
   onOpenDetail,
+  onDelete,
+  onArchive,
 }: {
   repair: Repair;
   overlay?: boolean;
   onOpenDetail?: (repair: Repair) => void;
+  onDelete?: (repair: Repair) => void;
+  onArchive?: (repair: Repair) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: repair.id });
   const meta = repairStatusMeta[repair.status];
@@ -200,6 +257,27 @@ function Card({
               <SlidersHorizontal className="h-3.5 w-3.5" />
             </button>
           )}
+          {!overlay && onDelete && (
+            <button
+              type="button"
+              aria-label="Eliminar orden"
+              onClick={() => onDelete(repair)}
+              className="-m-1 p-1 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {!overlay && onArchive && (
+            <button
+              type="button"
+              aria-label="Archivar orden"
+              title="Archivar (sale del tablero, queda en Clientes atendidos)"
+              onClick={() => onArchive(repair)}
+              className="-m-1 p-1 text-muted-foreground hover:text-surf-green"
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             type="button"
             aria-label="Mover"
@@ -214,6 +292,16 @@ function Card({
 
       <p className="mt-2 text-sm font-medium leading-snug">{repair.customer_name}</p>
       <p className="text-xs text-muted-foreground">{repair.device_model ?? repair.device_type}</p>
+      <p className="mt-0.5 font-mono text-[0.6rem] uppercase tracking-wider text-surf-green/70">
+        {repair.service_type}
+      </p>
+
+      {repair.promised_at && (
+        <p className="mt-1 flex items-center gap-1 font-mono text-[0.6rem] text-muted-foreground">
+          <CalendarClock className="h-3 w-3" />
+          entrega {new Date(repair.promised_at).toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+        </p>
+      )}
 
       <div className="mt-3 flex items-center justify-between border-t border-surface-grey pt-2">
         <a

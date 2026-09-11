@@ -22,6 +22,8 @@ function toDisplayRepair(pub: PublicRepair): Repair {
     customer_email: null,
     notes: null,
     technician_id: null,
+    archived_at: null,
+    renewal_months: null,
     created_at: pub.received_at,
     updated_at: pub.received_at,
   };
